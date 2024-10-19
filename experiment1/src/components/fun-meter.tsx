@@ -141,39 +141,44 @@ export function FunMeterComponent() {
     }
   }
 
-  const handleViewRanking = async () => {
-    // 変更: CSVデータの作成
-    const csvContent = meters.map((meter) => 
-      meter.data.map(d => {
-        const seconds = meter.startTime ? ((d.timestamp - meter.startTime) / 1000).toFixed(2) : "0.00"
-        return `${meter.name},${d.value.toFixed(2)},${seconds}`
-      }).join('\n')
-    ).join('\n')
-  
-    try {
-      // 変更: バックエンドAPIへのデータ送信
-      const response = await fetch('http://localhost:3000/api/save-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ data: csvContent }),
-      })
-  
-      if (response.ok) {
-        // 変更: 提出回数の更新と順位の計算
-        setSubmissionCount(prevCount => prevCount + 1)
-        const ranking = Math.floor(Math.random() * (submissionCount + 10)) + 1
-        setOverallRanking(ranking)
-        alert(`データが保存されました。あなたの順位は${ranking}位/${submissionCount + 10}です！`)
-      } else {
-        alert('データの保存に失敗しました。')
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('エラーが発生しました。')
+// ファイルの先頭に以下を追加
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+// ... その他のコード ...
+
+const handleViewRanking = async () => {
+  // 変更: CSVデータの作成（この部分は変更なし）
+  const csvContent = meters.map((meter) => 
+    meter.data.map(d => {
+      const seconds = meter.startTime ? ((d.timestamp - meter.startTime) / 1000).toFixed(2) : "0.00"
+      return `${meter.name},${d.value.toFixed(2)},${seconds}`
+    }).join('\n')
+  ).join('\n')
+
+  try {
+    // 変更: バックエンドAPIへのデータ送信（URLを環境変数で指定）
+    const response = await fetch(`${API_URL}/api/save-data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: csvContent }),
+    })
+
+    if (response.ok) {
+      // 変更: 提出回数の更新と順位の計算（この部分は変更なし）
+      setSubmissionCount(prevCount => prevCount + 1)
+      const ranking = Math.floor(Math.random() * (submissionCount + 10)) + 1
+      setOverallRanking(ranking)
+      alert(`データが保存されました。あなたの順位は${ranking}位/${submissionCount + 10}です！`)
+    } else {
+      alert('データの保存に失敗しました。')
     }
+  } catch (error) {
+    console.error('Error:', error)
+    alert('エラーが発生しました。')
   }
+}
 
   const getChartData = (meterIndex: number) => {
     const startTime = meters[meterIndex].startTime
