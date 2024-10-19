@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { FunMeterComponent } from "@/components/fun-meter";
 
 export default function Home() {
