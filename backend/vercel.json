@@ -1,0 +1,14 @@
+{
+    "version": 2,
+    "routes": [
+      {
+        "src": "/api/save-data",
+        "methods": ["POST"],
+        "dest": "/api/save-data.js"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "/api/index.js"
+      }
+    ]
+  }
