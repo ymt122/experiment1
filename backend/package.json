@@ -20,8 +20,8 @@
     "supertest": "^6.3.3"
   },
   "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js",
+    "start": "node api/index.js",
+    "dev": "nodemon api/index.js",
     "test": "jest"
   }
 }
