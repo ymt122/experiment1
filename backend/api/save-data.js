@@ -11,7 +11,7 @@ const log = (message, data = '') => {
 
 log('Starting save-data.js');
 log('Environment variables:', {
-  NODE_ENV: process.env.NODE_ENV,
+  NODE_ENV: config.nodeEnv,
   MONGODB_URI: config.mongodbUri ? 'Set' : 'Not set',
   ALLOWED_ORIGIN: config.allowedOrigin
 });
@@ -27,20 +27,28 @@ const DataSchema = new mongoose.Schema({
 // モデルの作成（既存の場合は再利用）
 const Data = mongoose.models.Data || mongoose.model('Data', DataSchema);
 
-module.exports = async (req, res) => {
-  log('Received request:', {
-    method: req.method,
-    headers: req.headers
-  });
-
-  try {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method Not Allowed' });
+// MongoDBへの接続関数
+const connectToMongoDB = async () => {
+  if (mongoose.connection.readyState !== 1) {
+    try {
+      await mongoose.connect(config.mongodbUri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        bufferCommands: false,
+        serverSelectionTimeoutMS: 5000
+      });
+      log('Successfully connected to MongoDB');
+    } catch (error) {
+      console.error('MongoDB connection error:', error);
+      throw error;
     }
+  }
+};
 
-    log('Request body:', req.body);
+module.exports = async (req, res) => {
+  try {
+    await connectToMongoDB();
 
-    // データの検証
     const { content } = req.body;
     if (!content) {
       return res.status(400).json({
@@ -49,13 +57,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    // データの保存
-    log('Creating new document');
     const newData = new Data({ content });
     const savedData = await newData.save();
     
-    log('Document saved successfully:', savedData);
-
     return res.status(200).json({
       message: 'Data saved successfully',
       data: {
@@ -64,21 +68,11 @@ module.exports = async (req, res) => {
         createdAt: savedData.createdAt
       }
     });
-
   } catch (error) {
-    log('Error occurred:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
-
-    // エラーレスポンスの返却
+    console.error('Error saving data:', error);
     return res.status(500).json({
-      error: 'Internal Server Error',
-      message: process.env.NODE_ENV === 'development' 
-        ? error.message 
-        : 'An error occurred while processing your request',
-      type: error.name
+      error: 'Error',
+      message: config.isDevelopment ? error.message : 'An error occurred while processing your request'
     });
   }
 };
