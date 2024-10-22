@@ -28,7 +28,7 @@ interface MeterState {
 
 export function FunMeterComponent() {
   const [meters, setMeters] = useState<MeterState[]>([
-    { data: [], isActive: false, isCompleted: false, name: "レグザ（Test）", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
+    { data: [], isActive: false, isCompleted: false, name: "レグザ（Test）", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押てください。", empathyScore: null, individualScore: null, totalScore: null },
     { data: [], isActive: false, isCompleted: false, name: "キリン　晴風", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
     { data: [], isActive: false, isCompleted: false, name: "アサヒ　生", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
     { data: [], isActive: false, isCompleted: false, name: "サントリー　プレミアムモルツ", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
@@ -43,6 +43,7 @@ export function FunMeterComponent() {
   const [overallTotalScore, setOverallTotalScore] = useState(0)
   const [submissionCount, setSubmissionCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const intervals = meters.map((meter, index) => {
@@ -147,38 +148,47 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 // ... その他のコード ...
 
 const handleViewRanking = async () => {
-  // 変更: CSVデータの作成（この部分は変更なし）
-  const csvContent = meters.map((meter) => 
-    meter.data.map(d => {
-      const seconds = meter.startTime ? ((d.timestamp - meter.startTime) / 1000).toFixed(2) : "0.00"
-      return `${meter.name},${d.value.toFixed(2)},${seconds}`
-    }).join('\n')
-  ).join('\n')
-
+  setIsLoading(true);
   try {
-    // 変更: バックエンドAPIへのデータ送信（URLを環境変数で指定）
+    // CSVデータの作成（この部分は変更なし）
+    const csvContent = meters.map((meter) => 
+      meter.data.map(d => {
+        const seconds = meter.startTime ? ((d.timestamp - meter.startTime) / 1000).toFixed(2) : "0.00"
+        return `${meter.name},${d.value.toFixed(2)},${seconds}`
+      }).join('\n')
+    ).join('\n')
+
+    // バックエンドAPIへのデータ送信（URLを環境変数で指定）
     const response = await fetch(`${API_URL}/api/save-data`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ data: csvContent }),
-    })
+      body: JSON.stringify({ content: csvContent }),
+    });
 
-    if (response.ok) {
-      // 変更: 提出回数の更新と順位の計算（この部分は変更なし）
-      setSubmissionCount(prevCount => prevCount + 1)
-      const ranking = Math.floor(Math.random() * (submissionCount + 10)) + 1
-      setOverallRanking(ranking)
-      alert(`データが保存されました。あなたの順位は${ranking}位/${submissionCount + 10}です！`)
-    } else {
-      alert('データの保存に失敗しました。')
+    if (!response.ok) {
+      const errorData = await response.json();
+      if (response.status === 503) {
+        throw new Error('データベース接続エラーが発生しました。しばらく待ってから再試行してください。');
+      } else {
+        throw new Error(`データの保存に失敗しました: ${errorData.message}`);
+      }
     }
+
+    // 提出回数の更新と順位の計算
+    setSubmissionCount(prevCount => prevCount + 1);
+    const ranking = Math.floor(Math.random() * (submissionCount + 10)) + 1;
+    setOverallRanking(ranking);
+    alert(`データが保存されました。あなたの順位は${ranking}位/${submissionCount + 10}です！`);
+
   } catch (error) {
-    console.error('Error:', error)
-    alert('エラーが発生しました。')
+    console.error('Error:', error);
+    alert(error instanceof Error ? error.message : 'エラーが発生しました。');
+  } finally {
+    setIsLoading(false);
   }
-}
+};
 
   const getChartData = (meterIndex: number) => {
     const startTime = meters[meterIndex].startTime
@@ -309,7 +319,7 @@ const handleViewRanking = async () => {
             はじめに、説明書に記載されている練習用CM（レグザ）を用いて、この面白さ・好感度メーターの仕様に慣れていただきたいです。記載されたリンクからYouTubeを開き、流れ始める動画をすぐに一時停止してください。そして、動画の再生ボタンを押しながら、本Webサイト上の「記録開始」ボタンを押してください。
           </p>
           <p className="mb-4">
-            記録開始ボタンを押すと、メーターを動かすことが出来ます。円状の部分をタップ（クリック）しながら左右に動かすことで、今この瞬間のあなたの感情が記録されていきます。CMでは「CMに対する好感度」を記録してください。全て主観で構いません。以下のものを参考に、1-10の記録をし続けてください。
+            記録開始ボタン押すと、メーターを動かすことが出来ます。円状の部分をタップ（クリック）しながら左右に動かすことで、今この瞬間のあなたの感情が記録されていきます。CMでは「CMに対する好感度」を記録してください。全て主観で構いません。以下のものを参考に、1-10の記録をし続けてください。
           </p>
           <ul className="list-disc list-inside">
             <li>1：特に感情が何もない状態、感情が動いていない</li>
@@ -359,8 +369,12 @@ const handleViewRanking = async () => {
 
       {meters.slice(4).map((meter, index) => renderMeter(meter, index + 4))}
 
-      <Button onClick={handleViewRanking} disabled={!meters.every(m => m.isCompleted)} className="mt-4">
-        合計スコアと順位を見る
+      <Button 
+        onClick={handleViewRanking} 
+        disabled={!meters.every(m => m.isCompleted) || isLoading} 
+        className="mt-4"
+      >
+        {isLoading ? 'データを保存中...' : '合計スコアと順位を見る'}
       </Button>
 
       {overallRanking !== null && (
