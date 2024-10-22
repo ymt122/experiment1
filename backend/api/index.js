@@ -28,6 +28,7 @@ app.use(express.json());
 
 // MongoDBへの接続関数
 const connectToMongoDB = async () => {
+  console.log('Attempting to connect to MongoDB...');
   try {
     await mongoose.connect(config.mongodbUri, {
       useNewUrlParser: true,
@@ -38,20 +39,17 @@ const connectToMongoDB = async () => {
     console.log('Successfully connected to MongoDB');
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    // エラーをスローして、呼び出し元で処理できるようにする
-    throw error;
   }
 };
 
 // 接続関数の呼び出しと接続完了の待機
 const initializeApp = async () => {
+  console.log('Initializing application...');
   try {
     await connectToMongoDB();
     console.log('Application initialized');
   } catch (error) {
     console.error('Failed to initialize application:', error);
-    // エラーをスローして、Vercelの再試行メカニズムを活用
-    throw error;
   }
 };
 
@@ -77,30 +75,36 @@ app.get('/', (req, res) => {
   res.status(200).json({ message: 'Welcome to the API' });
 });
 
-// アプリケーションの初期化
-initializeApp().catch(error => {
-  console.error('Failed to initialize application:', error);
-  process.exit(1);
-});
-
 // Serverless Functionのエントリーポイント
 module.exports = async (req, res) => {
+  console.log('Serverless Function entry point reached');
   console.log('Received request:', req.method, req.url);
   try {
-    // アプリケーションが初期化されていない場合のみ初期化
+    console.log('Checking MongoDB connection state...');
     if (mongoose.connection.readyState !== 1) {
+      console.log('MongoDB not connected. Initializing application...');
       await initializeApp();
     }
-    // Expressアプリケーションを正しく呼び出す
-    app(req, res);
+    console.log('MongoDB connection state:', mongoose.connection.readyState);
+    
+    console.log('Calling Express application...');
+    return new Promise((resolve, reject) => {
+      app(req, res, (err) => {
+        if (err) {
+          console.error('Express application error:', err);
+          reject(err);
+        }
+        resolve();
+      });
+    });
   } catch (error) {
     console.error('Error in Serverless Function:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    res.status(500).json({ error: 'Internal Server Error', message: error.message, stack: error.stack });
   }
 };
 
 // エラーハンドリングミドルウェアを追加
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal Server Error', message: err.message });
+  res.status(500).json({ error: 'Internal Server Error', message: err.message, stack: err.stack });
 });
