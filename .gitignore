@@ -21,3 +21,4 @@ Thumbs.db
 /build
 
 # その他プロジェクト固有の除外ファイル
+.vercel

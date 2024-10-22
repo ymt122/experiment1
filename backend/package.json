@@ -23,5 +23,6 @@
     "start": "node api/index.js",
     "dev": "nodemon api/index.js",
     "test": "jest"
-  }
+  },
+  "main": "api/index.js"
 }
