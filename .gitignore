@@ -1,0 +1,22 @@
+# Node.js
+node_modules/
+
+# 環境変数
+.env
+
+# ログファイル
+*.log
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# エディタ固有のファイル
+.vscode/
+.idea/
+
+# ビルド出力
+/dist
+/build
+
+# その他プロジェクト固有の除外ファイル

@@ -2,133 +2,138 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 
-// デバッグログの追加
-console.log('Node ENV:', process.env.NODE_ENV);
-console.log('MongoDB URI exists:', !!process.env.MONGODB_URI);
-console.log('ALLOWED_ORIGIN:', process.env.ALLOWED_ORIGIN);
-
-// 開発環境でのみ.envファイルを読み込む
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config({ path: '../../.env' });
-  console.log('Loaded .env file');
-}
-
-// Mongooseの接続オプション
-const mongooseOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
-  // デバッグモードを有効化
-  debug: true
+// デバッグログの設定
+const DEBUG = true;
+const log = (message, data = '') => {
+  if (DEBUG) {
+    console.log(`[DEBUG] ${message}`, data);
+  }
 };
 
-// MongoDBへの接続をPromiseで処理
-mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
-  .then(() => {
-    console.log('Successfully connected to MongoDB');
-  })
-  .catch(err => {
-    console.error('MongoDB connection error:', {
-      name: err.name,
-      message: err.message,
-      code: err.code,
-      stack: err.stack
+log('Starting save-data.js');
+log('Environment variables:', {
+  NODE_ENV: process.env.NODE_ENV,
+  MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'Not set',
+  ALLOWED_ORIGIN: process.env.ALLOWED_ORIGIN
+});
+
+// Mongooseのグローバル設定
+mongoose.set('strictQuery', false);
+
+// MongoDBへの接続を管理する関数
+let isConnected = false;
+const connectDB = async () => {
+  if (isConnected) {
+    log('Using existing MongoDB connection');
+    return;
+  }
+
+  try {
+    log('Attempting to connect to MongoDB...');
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 5000
     });
-  });
-
-const db = mongoose.connection;
-
-// より詳細なエラーハンドリング
-db.on('error', (error) => {
-  console.error('MongoDB connection error:', {
-    name: error.name,
-    message: error.message,
-    code: error.code,
-    stack: error.stack
-  });
-});
-
-db.once('open', function() {
-  console.log('MongoDB connection established successfully');
-});
+    
+    isConnected = true;
+    log('Successfully connected to MongoDB');
+  } catch (error) {
+    log('MongoDB connection error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    throw error;
+  }
+};
 
 // データモデルの定義
 const DataSchema = new mongoose.Schema({
   content: String,
   createdAt: { type: Date, default: Date.now }
+}, {
+  strictQuery: false
 });
 
-// 既存のモデルがある場合は再利用、ない場合は新規作成
+// モデルの作成（既存の場合は再利用）
 const Data = mongoose.models.Data || mongoose.model('Data', DataSchema);
 
-// CORSミドルウェアの設定
-const corsMiddleware = cors({
-  origin: process.env.ALLOWED_ORIGIN || 'http://localhost:3000',
+// CORSの設定
+const corsOptions = {
+  origin: 'https://experiment1-2.vercel.app', // リクエストを許可する特定のオリジン
   methods: ['POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
-});
+};
 
-// Helmetミドルウェアの設定
+const corsMiddleware = cors(corsOptions);
 const helmetMiddleware = helmet();
 
 module.exports = async (req, res) => {
-  try {
-    // リクエストの詳細をログ
-    console.log('Request method:', req.method);
-    console.log('Request headers:', req.headers);
-    
-    corsMiddleware(req, res, () => {
-      helmetMiddleware(req, res, async () => {
-        if (req.method === 'OPTIONS') {
-          res.status(200).end();
-          return;
-        }
-        
-        if (req.method === 'POST') {
-          try {
-            console.log('Received request body:', req.body);
-            
-            const { content } = req.body;
-            if (!content) {
-              console.log('Content missing in request');
-              return res.status(400).json({ error: 'Content is required' });
-            }
+  log('Received request:', {
+    method: req.method,
+    headers: req.headers
+  });
 
-            console.log('Creating new data document');
-            const newData = new Data({ content });
-            
-            console.log('Attempting to save document');
-            await newData.save();
-            
-            console.log('Document saved successfully');
-            res.status(200).json({ 
-              message: 'Data saved successfully', 
-              id: newData._id,
-              content: newData.content 
-            });
-          } catch (error) {
-            console.error('Error processing request:', {
-              name: error.name,
-              message: error.message,
-              stack: error.stack
-            });
-            res.status(500).json({ 
-              error: 'Internal server error', 
-              message: error.message,
-              type: error.name
-            });
-          }
-        } else {
-          res.status(405).json({ error: 'Method Not Allowed' });
-        }
+  try {
+    // CORS & Helmetの適用
+    await new Promise((resolve) => corsMiddleware(req, res, resolve));
+    await new Promise((resolve) => helmetMiddleware(req, res, resolve));
+
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    log('Request body:', req.body);
+
+    // データの検証
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Content is required'
       });
+    }
+
+    // MongoDBへの接続
+    await connectDB();
+
+    // データの保存
+    log('Creating new document');
+    const newData = new Data({ content });
+    const savedData = await newData.save();
+    
+    log('Document saved successfully:', savedData);
+
+    return res.status(200).json({
+      message: 'Data saved successfully',
+      data: {
+        id: savedData._id,
+        content: savedData.content,
+        createdAt: savedData.createdAt
+      }
     });
+
   } catch (error) {
-    console.error('Top level error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error', 
-      message: 'An unexpected error occurred'
+    log('Error occurred:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+
+    // エラーレスポンスの返却
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: process.env.NODE_ENV === 'development' 
+        ? error.message 
+        : 'An error occurred while processing your request',
+      type: error.name
     });
   }
 };
