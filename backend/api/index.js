@@ -10,9 +10,9 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const express = require('express');
+const { MongoClient } = require('mongodb');
 const config = require('../config');
 const cors = require('cors');
-const mongoose = require('mongoose');
 const helmet = require('helmet');
 const healthCheck = require('./health');
 const saveData = require('./save-data');
@@ -26,38 +26,20 @@ app.use(cors(config.corsOptions));
 app.use(helmet());
 app.use(express.json());
 
-// MongoDBへの接続関数
-const connectToMongoDB = async () => {
-  console.log('Attempting to connect to MongoDB...');
+// MongoDBの接続テスト
+const testMongoConnection = async () => {
+  console.log('Testing MongoDB connection...');
+  const client = new MongoClient(config.mongodbUri);
   try {
-    await mongoose.connect(config.mongodbUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 5000
-    });
+    await client.connect();
     console.log('Successfully connected to MongoDB');
+    await client.close();
+    return true;
   } catch (error) {
     console.error('MongoDB connection error:', error);
+    return false;
   }
 };
-
-// 接続関数の呼び出しと接続完了の待機
-const initializeApp = async () => {
-  console.log('Initializing application...');
-  try {
-    await connectToMongoDB();
-    console.log('Application initialized');
-  } catch (error) {
-    console.error('Failed to initialize application:', error);
-  }
-};
-
-// 接続状態の監視
-mongoose.connection.on('disconnected', () => {
-  console.log('Lost MongoDB connection. Reconnecting...');
-  connectToMongoDB();
-});
 
 // ルートの設定
 app.get('/api/health', (req, res) => {
@@ -79,13 +61,10 @@ app.get('/', (req, res) => {
 module.exports = async (req, res) => {
   console.log('Serverless Function entry point reached');
   console.log('Received request:', req.method, req.url);
+  
   try {
-    console.log('Checking MongoDB connection state...');
-    if (mongoose.connection.readyState !== 1) {
-      console.log('MongoDB not connected. Initializing application...');
-      await initializeApp();
-    }
-    console.log('MongoDB connection state:', mongoose.connection.readyState);
+    // 初期接続テスト
+    await testMongoConnection();
     
     console.log('Calling Express application...');
     return new Promise((resolve, reject) => {
@@ -99,12 +78,20 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in Serverless Function:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: error.message, stack: error.stack });
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      message: error.message, 
+      stack: config.isDevelopment ? error.stack : undefined 
+    });
   }
 };
 
 // エラーハンドリングミドルウェアを追加
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal Server Error', message: err.message, stack: err.stack });
+  res.status(500).json({ 
+    error: 'Internal Server Error', 
+    message: err.message, 
+    stack: config.isDevelopment ? err.stack : undefined 
+  });
 });

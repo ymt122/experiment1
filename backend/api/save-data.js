@@ -1,78 +1,64 @@
-const mongoose = require('mongoose');
-const config = require('../config');
+const { MongoClient } = require('mongodb');
+const cors = require('cors');
+const helmet = require('helmet');
 
-// デバッグログの設定
-const DEBUG = true;
-const log = (message, data = '') => {
-  if (DEBUG) {
-    console.log(`[DEBUG] ${message}`, data);
-  }
-};
-
-log('Starting save-data.js');
-log('Environment variables:', {
-  NODE_ENV: config.nodeEnv,
-  MONGODB_URI: config.mongodbUri ? 'Set' : 'Not set',
-  ALLOWED_ORIGIN: config.allowedOrigin
+// CORSミドルウェアの設定
+const corsMiddleware = cors({
+  origin: process.env.ALLOWED_ORIGIN || '*',
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 });
 
-// データモデルの定義
-const DataSchema = new mongoose.Schema({
-  content: String,
-  createdAt: { type: Date, default: Date.now }
-}, {
-  strictQuery: false
-});
-
-// モデルの作成（既存の場合は再利用）
-const Data = mongoose.models.Data || mongoose.model('Data', DataSchema);
-
-// MongoDBへの接続関数
-const connectToMongoDB = async () => {
-  if (mongoose.connection.readyState !== 1) {
-    try {
-      await mongoose.connect(config.mongodbUri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        bufferCommands: false,
-        serverSelectionTimeoutMS: 5000
-      });
-      log('Successfully connected to MongoDB');
-    } catch (error) {
-      console.error('MongoDB connection error:', error);
-      throw error;
-    }
-  }
-};
+// Helmetミドルウェアの設定
+const helmetMiddleware = helmet();
 
 module.exports = async (req, res) => {
+  console.log('Starting save-data handler');
+  
   try {
-    await connectToMongoDB();
+    // CORSとHelmetの適用
+    await new Promise((resolve) => corsMiddleware(req, res, resolve));
+    await new Promise((resolve) => helmetMiddleware(req, res, resolve));
+
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    console.log('Connecting to MongoDB...');
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    
+    const db = client.db('experiment1');
+    const collection = db.collection('data');
 
     const { content } = req.body;
     if (!content) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Content is required'
-      });
+      await client.close();
+      return res.status(400).json({ error: 'Content is required' });
     }
 
-    const newData = new Data({ content });
-    const savedData = await newData.save();
+    const result = await collection.insertOne({
+      content,
+      createdAt: new Date()
+    });
+
+    await client.close();
+    console.log('Data saved successfully');
     
     return res.status(200).json({
       message: 'Data saved successfully',
-      data: {
-        id: savedData._id,
-        content: savedData.content,
-        createdAt: savedData.createdAt
-      }
+      id: result.insertedId
     });
+
   } catch (error) {
-    console.error('Error saving data:', error);
+    console.error('Error:', error);
     return res.status(500).json({
-      error: 'Error',
-      message: config.isDevelopment ? error.message : 'An error occurred while processing your request'
+      error: 'Internal Server Error',
+      message: error.message
     });
   }
 };

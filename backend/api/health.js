@@ -1,28 +1,24 @@
-const mongoose = require('mongoose');
+const { MongoClient } = require('mongodb');
 const config = require('../config');
 
-const connectToMongoDB = async () => {
-  if (mongoose.connection.readyState !== 1) {
-    try {
-      await mongoose.connect(config.mongodbUri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000,
-      });
-    } catch (error) {
-      console.error('MongoDB connection error:', error);
-      throw error;
-    }
+const checkMongoConnection = async () => {
+  const client = new MongoClient(config.mongodbUri);
+  try {
+    await client.connect();
+    await client.db().admin().ping();
+    return true;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  } finally {
+    await client.close();
   }
 };
 
 module.exports = async (req, res) => {
   try {
-    await connectToMongoDB();
+    await checkMongoConnection();
     
-    // データベース接続のテスト
-    await mongoose.connection.db.admin().ping();
-
     res.status(200).json({
       status: 'healthy',
       message: 'Application is running and connected to MongoDB',
