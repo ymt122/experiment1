@@ -26,10 +26,12 @@ interface MeterState {
   totalScore: number | null
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
 export function FunMeterComponent() {
   const [meters, setMeters] = useState<MeterState[]>([
-    { data: [], isActive: false, isCompleted: false, name: "レグザ（Test）", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押てください。", empathyScore: null, individualScore: null, totalScore: null },
-    { data: [], isActive: false, isCompleted: false, name: "キリン　晴風", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
+    { data: [], isActive: false, isCompleted: false, name: "レグザ（Test）", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押ださい。", empathyScore: null, individualScore: null, totalScore: null },
+    { data: [], isActive: false, isCompleted: false, name: "キリン　晴風", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同晘に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
     { data: [], isActive: false, isCompleted: false, name: "アサヒ　生", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
     { data: [], isActive: false, isCompleted: false, name: "サントリー　プレミアムモルツ", yAxisLabel: "好感度", startTime: null, currentValue: 1, instruction: "説明書に記載されているYouTubeのリンクを押し、動画を再生させるのと同時に「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
     { data: [], isActive: false, isCompleted: false, name: "かまいたち2019", yAxisLabel: "面白さ", startTime: null, currentValue: 1, instruction: "**35:58～**から再生を開始し、同時に本Webサイト上の「記録開始」ボタンを押してください。", empathyScore: null, individualScore: null, totalScore: null },
@@ -142,53 +144,44 @@ export function FunMeterComponent() {
     }
   }
 
-// ファイルの先頭に以下を追加
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const handleViewRanking = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/save-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: {
+            meters: meters.map(meter => ({
+              name: meter.name,
+              data: meter.data,
+              empathyScore: meter.empathyScore,
+              individualScore: meter.individualScore,
+              totalScore: meter.totalScore
+            })),
+            totalEmpathyScore,
+            totalIndividualScore,
+            overallTotalScore
+          }
+        })
+      });
 
-// ... その他のコード ...
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
 
-const handleViewRanking = async () => {
-  setIsLoading(true);
-  try {
-    // CSVデータの作成（この部分は変更なし）
-    const csvContent = meters.map((meter) => 
-      meter.data.map(d => {
-        const seconds = meter.startTime ? ((d.timestamp - meter.startTime) / 1000).toFixed(2) : "0.00"
-        return `${meter.name},${d.value.toFixed(2)},${seconds}`
-      }).join('\n')
-    ).join('\n')
+      // テスト用に直接値を設定
+      setOverallRanking(1);
+      setSubmissionCount(10);
 
-    // バックエンドAPIへのデータ送信（URLを環境変数で指定）
-    const response = await fetch(`${API_URL}/api/save-data`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content: csvContent }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (response.status === 503) {
-        throw new Error('データベース接続エラーが発生しました。しばらく待ってから再試行してください。');
-      } else {
-        throw new Error(`データの保存に失敗しました: ${errorData.message}`);
-      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
     }
-
-    // 提出回数の更新と順位の計算
-    setSubmissionCount(prevCount => prevCount + 1);
-    const ranking = Math.floor(Math.random() * (submissionCount + 10)) + 1;
-    setOverallRanking(ranking);
-    alert(`データが保存されました。あなたの順位は${ranking}位/${submissionCount + 10}です！`);
-
-  } catch (error) {
-    console.error('Error:', error);
-    alert(error instanceof Error ? error.message : 'エラーが発生しました。');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const getChartData = (meterIndex: number) => {
     const startTime = meters[meterIndex].startTime
@@ -202,11 +195,11 @@ const handleViewRanking = async () => {
 
   const getFeedback = (empathyScore: number) => {
     if (empathyScore >= 217) {
-      return "あなたの感情の波は、他の参加者と非常に高い共感性を持っています。コンテンツを設計する際、視聴者全体が共通して強い感情を抱くシーンや展開を作ることが得意と言えます。感情のピークを狙った場面を意識して、共感を生むようなシーンを強調することで、多くの人に受け入れられるストーリーを作りやすいでしょう。"
+      return "あなたの感情の波は、他の参加者と非常に高い共性を持っています。コンテンツを設計する際、視聴者全体が共通して強い感情を抱くシーンや展開を作ることが得意と言えます。感情のピークを狙った場面を意識して、共感を生むようなシーンを強調することで、多くの人に受け入れられるストーリーを作りやすいでしょう。"
     } else if (empathyScore >= 157) {
       return "あなたの感情は多くの参加者と似たタイミングで高まっていますが、一部であなた独自の感情の高まりや落ち着きが見られました。コンテンツ全体を通じて、バランスの取れた感情反応です。共感を生むシーンを作りつつ、独自性を加えることで、視聴者に新しい驚きや発見を与えるストーリー展開が可能です。共通の感情ポイントを大切にしながら、あえて意外性を挿入する場面を意識してみてください。"
     } else {
-      return "あなたは他の参加者があまり強く反応しなかった場面で感情の高まりを感じており、独自の視点を持っています。全体的にユニークな反応を示しており、独創性が際立っています。あなたはオリジナリティを活かしたストーリー設計が得意です。視聴者の予想を裏切る展開や、特定の感性を持つ人に強く響くシーンを意識してみると良いでしょう。ニッチな感情を刺激する要素を盛り込むことで、独自性の高い作品が作れます。"
+      return "あなたは他の参加者があまり強く反応しなかった場面で感情の高まりを感じており、独自の視点を持っています。全体的にユニークな反応を示しており、独創性が際立っています。あなたはオリジナリティを活かしたストーリー設計が得意です。視聴者の予想を裏る展開や、特定の感性を持つ人に強く響くシーンを意識してみると良いでしょう。ニッチな感情を刺激する要素を盛り込むことで、独自性の高い作品が作れます。"
     }
   }
 
@@ -316,7 +309,7 @@ const handleViewRanking = async () => {
         </CardHeader>
         <CardContent>
           <p className="mb-4">
-            はじめに、説明書に記載されている練習用CM（レグザ）を用いて、この面白さ・好感度メーターの仕様に慣れていただきたいです。記載されたリンクからYouTubeを開き、流れ始める動画をすぐに一時停止してください。そして、動画の再生ボタンを押しながら、本Webサイト上の「記録開始」ボタンを押してください。
+            はじめに、説明書に記載されている練習CM（レグザ）を用いて、この面白さ・好感度メーターの仕様に慣れていただきたいです。記載されたリンクからYouTubeを開き、流れ始める動画をすぐに一時停止してください。そして、動画の再生ボタンを押しながら、本Webサイト上の「記録開始」ボタンを押してください。
           </p>
           <p className="mb-4">
             記録開始ボタン押すと、メーターを動かすことが出来ます。円状の部分をタップ（クリック）しながら左右に動かすことで、今この瞬間のあなたの感情が記録されていきます。CMでは「CMに対する好感度」を記録してください。全て主観で構いません。以下のものを参考に、1-10の記録をし続けてください。
@@ -358,7 +351,7 @@ const handleViewRanking = async () => {
             今回は今この瞬間のあなたにとっての「面白さ」を主観で残し続けてください。以下のものを参考に、1-10の記録をし続けてください。
           </p>
           <ul className="list-disc list-inside">
-            <li>1：特に笑わない程度</li>
+            <li>1：特笑わない程度</li>
             <li>3：クスっとするが、声には出さない程度</li>
             <li>5：笑いがこらえられない程度（少し声に出してしまう）</li>
             <li>7：しっかりと声に出して笑いたくなる程度</li>

@@ -1,5 +1,5 @@
 const { MongoClient } = require('mongodb');
-const config = require('../config');
+const config = require('../../experiment1/src/lib/config');
 
 const checkMongoConnection = async () => {
   const client = new MongoClient(config.mongodbUri);

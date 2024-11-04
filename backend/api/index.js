@@ -11,7 +11,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 const express = require('express');
 const { MongoClient } = require('mongodb');
-const config = require('../config');
+const config = require('../../experiment1/src/lib/config');
 const cors = require('cors');
 const helmet = require('helmet');
 const healthCheck = require('./health');

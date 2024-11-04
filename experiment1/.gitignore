@@ -1,36 +1,28 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Node.js
+node_modules/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
+# 環境変数
+.env
+.env.production
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# testing
-/coverage
+# ログファイル
+*.log
 
-# next.js
-/.next/
-/out/
+# OS生成ファイル
+.DS_Store
+Thumbs.db
 
-# production
+# エディタ固有のファイル
+.vscode/
+.idea/
+
+# ビルド出力
+/dist
 /build
 
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-
-# vercel
+# その他プロジェクト固有の除外ファイル
 .vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
